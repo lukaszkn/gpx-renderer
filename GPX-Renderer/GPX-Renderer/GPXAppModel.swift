@@ -23,6 +23,11 @@ final class GPXAppModel: ObservableObject {
             UserDefaults.standard.set(isDateTimeVisible, forKey: Self.dateTimeVisibleDefaultsKey)
         }
     }
+    @Published var isHeightProfileVisible: Bool {
+        didSet {
+            UserDefaults.standard.set(isHeightProfileVisible, forKey: Self.heightProfileVisibleDefaultsKey)
+        }
+    }
     @Published var documents: [GPXDocumentEntry] = []
     @Published var notice: AppNotice?
     @Published var isSavingScreenshot = false
@@ -31,6 +36,7 @@ final class GPXAppModel: ObservableObject {
     private static let trackColorDefaultsKey = "selectedTrackColor"
     private static let trackColorModeDefaultsKey = "trackColorMode"
     private static let dateTimeVisibleDefaultsKey = "isDateTimeVisible"
+    private static let heightProfileVisibleDefaultsKey = "isHeightProfileVisible"
 
     private let parser = GPXParser()
     private let fileStore = GPXFileStore()
@@ -44,6 +50,7 @@ final class GPXAppModel: ObservableObject {
             .flatMap(TrackColorMode.init(rawValue:))
         trackColorMode = savedColorMode ?? .multiDay
         isDateTimeVisible = UserDefaults.standard.object(forKey: Self.dateTimeVisibleDefaultsKey) as? Bool ?? true
+        isHeightProfileVisible = UserDefaults.standard.object(forKey: Self.heightProfileVisibleDefaultsKey) as? Bool ?? false
         refreshDocuments()
     }
 

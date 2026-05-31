@@ -65,16 +65,12 @@ struct RouteMapView: UIViewRepresentable {
             return makeSingleColorPolylines(for: track)
         case .multiDay:
             let calendar = Calendar.current
-            let days = trackDays(in: track, calendar: calendar)
+            let days = TrackColorStyling.trackDays(in: track, calendar: calendar)
             guard days.count > 1 else {
                 return makeSingleColorPolylines(for: track)
             }
 
-            let colorsByDay = Dictionary(
-                uniqueKeysWithValues: days.enumerated().map { index, day in
-                    (day, multiDayColor(forDayAt: index))
-                }
-            )
+            let colorsByDay = TrackColorStyling.colorsByDay(for: days, baseColor: trackColor.uiColor)
 
             return track.segments.flatMap { segment in
                 makeMultiDayPolylines(for: segment, colorsByDay: colorsByDay, calendar: calendar)
@@ -131,38 +127,6 @@ struct RouteMapView: UIViewRepresentable {
         let coordinates = points.map(\.coordinate)
         guard coordinates.count > 1 else { return nil }
         return RoutePolyline(polyline: MKPolyline(coordinates: coordinates, count: coordinates.count), color: color)
-    }
-
-    private func trackDays(in track: GPXTrack, calendar: Calendar) -> [Date] {
-        let days = Set(track.allPoints.compactMap { point in
-            point.time.map { calendar.startOfDay(for: $0) }
-        })
-        return days.sorted()
-    }
-
-    private func multiDayColor(forDayAt index: Int) -> UIColor {
-        guard index > 0 else { return trackColor.uiColor }
-
-        let baseHue = hue(from: trackColor.uiColor)
-        let hue = (baseHue + CGFloat(index) * 0.618_033_988_75).truncatingRemainder(dividingBy: 1)
-        let saturation: CGFloat = index.isMultiple(of: 2) ? 0.88 : 0.78
-        let brightness: CGFloat = index.isMultiple(of: 3) ? 0.88 : 0.98
-
-        return UIColor(hue: hue, saturation: saturation, brightness: brightness, alpha: 1)
-    }
-
-    private func hue(from color: UIColor) -> CGFloat {
-        var hue: CGFloat = 0
-        var saturation: CGFloat = 0
-        var brightness: CGFloat = 0
-        var alpha: CGFloat = 0
-
-        if color.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha),
-           saturation > 0.2 {
-            return hue
-        }
-
-        return 0.03
     }
 
     private func fit(polylines: [MKPolyline], on mapView: MKMapView) {

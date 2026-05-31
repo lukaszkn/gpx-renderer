@@ -58,6 +58,10 @@ struct ContentView: View {
                     Label("Show Date/Time", systemImage: "calendar.badge.clock")
                 }
 
+                Toggle(isOn: $model.isHeightProfileVisible) {
+                    Label("Show Height Profile", systemImage: "chart.line.uptrend.xyaxis")
+                }
+
                 Menu {
                     ForEach(TrackColorMode.allCases) { mode in
                         Button {
@@ -154,6 +158,14 @@ struct ContentView: View {
                     .frame(height: 30)
                 statBlock(value: model.stats.durationText, label: "Time")
             }
+
+            if model.isHeightProfileVisible, let heightProfile = model.track?.heightProfile {
+                HeightProfileView(
+                    profile: heightProfile,
+                    trackColor: model.selectedColor,
+                    trackColorMode: model.trackColorMode
+                )
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -176,6 +188,101 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct HeightProfileView: View {
+    let profile: GPXHeightProfile
+    let trackColor: TrackColor
+    let trackColorMode: TrackColorMode
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.caption.weight(.semibold))
+                Text("Height")
+                    .font(.caption.weight(.semibold))
+                Spacer(minLength: 12)
+                Text(profile.elevationRangeText)
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+            }
+            .foregroundStyle(.secondary)
+
+            ZStack {
+                HeightProfileGrid()
+                    .stroke(.white.opacity(0.22), style: StrokeStyle(lineWidth: 1, dash: [3, 5]))
+                ForEach(profile.lineSections(trackColor: trackColor, trackColorMode: trackColorMode)) { section in
+                    let color = Color(uiColor: section.color)
+                    HeightProfileLine(profile: profile, samples: section.samples)
+                        .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                        .shadow(color: color.opacity(0.35), radius: 2, y: 1)
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 5)
+            .frame(height: 54)
+            .background(.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 6))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Height profile, \(profile.elevationRangeText)")
+    }
+}
+
+private struct HeightProfileGrid: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let yPositions = [rect.minY, rect.midY, rect.maxY]
+
+        for yPosition in yPositions {
+            path.move(to: CGPoint(x: rect.minX, y: yPosition))
+            path.addLine(to: CGPoint(x: rect.maxX, y: yPosition))
+        }
+
+        return path
+    }
+}
+
+private struct HeightProfileLine: Shape {
+    let profile: GPXHeightProfile
+    let samples: [GPXHeightProfileSample]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard let firstSample = samples.first else { return path }
+
+        let elevationRange = profile.maxElevationMeters - profile.minElevationMeters
+        let elevationPadding = elevationRange > 0 ? max(elevationRange * 0.08, 1) : 1
+        let minElevation = profile.minElevationMeters - elevationPadding
+        let maxElevation = profile.maxElevationMeters + elevationPadding
+        let paddedElevationRange = max(maxElevation - minElevation, 1)
+        let distanceRange = profile.maxDistanceMeters - profile.minDistanceMeters
+
+        for (index, sample) in samples.enumerated() {
+            let xProgress: Double
+            if distanceRange > 0 {
+                xProgress = (sample.distanceMeters - profile.minDistanceMeters) / distanceRange
+            } else if samples.count > 1 {
+                xProgress = Double(index) / Double(samples.count - 1)
+            } else {
+                xProgress = 0
+            }
+
+            let yProgress = (sample.elevationMeters - minElevation) / paddedElevationRange
+            let point = CGPoint(
+                x: rect.minX + rect.width * CGFloat(xProgress),
+                y: rect.maxY - rect.height * CGFloat(yProgress)
+            )
+
+            if sample.id == firstSample.id {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+
+        return path
     }
 }
 

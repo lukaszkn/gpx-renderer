@@ -107,6 +107,150 @@ struct GPXStats {
     }
 }
 
+struct GPXHeightProfile {
+    let samples: [GPXHeightProfileSample]
+    let minElevationMeters: Double
+    let maxElevationMeters: Double
+    let minDistanceMeters: CLLocationDistance
+    let maxDistanceMeters: CLLocationDistance
+    let trackDays: [Date]
+
+    init?(track: GPXTrack, calendar: Calendar = .current) {
+        var samples: [GPXHeightProfileSample] = []
+        var cumulativeDistance: CLLocationDistance = 0
+        var sampleIndex = 0
+
+        for segment in track.segments {
+            var previousPoint: GPXPoint?
+
+            for point in segment.points {
+                if let previousPoint {
+                    cumulativeDistance += GPXDistance.haversineMeters(
+                        from: previousPoint.coordinate,
+                        to: point.coordinate
+                    )
+                }
+
+                if let elevation = point.elevation, elevation.isFinite {
+                    samples.append(
+                        GPXHeightProfileSample(
+                            id: sampleIndex,
+                            distanceMeters: cumulativeDistance,
+                            elevationMeters: elevation,
+                            day: point.time.map { calendar.startOfDay(for: $0) }
+                        )
+                    )
+                    sampleIndex += 1
+                }
+
+                previousPoint = point
+            }
+        }
+
+        guard samples.count >= 2,
+              let minElevation = samples.map(\.elevationMeters).min(),
+              let maxElevation = samples.map(\.elevationMeters).max(),
+              let minDistance = samples.first?.distanceMeters,
+              let maxDistance = samples.last?.distanceMeters else {
+            return nil
+        }
+
+        self.samples = samples
+        minElevationMeters = minElevation
+        maxElevationMeters = maxElevation
+        minDistanceMeters = minDistance
+        maxDistanceMeters = maxDistance
+        trackDays = TrackColorStyling.trackDays(in: track, calendar: calendar)
+    }
+
+    var elevationRangeText: String {
+        let minText = Int(minElevationMeters.rounded())
+        let maxText = Int(maxElevationMeters.rounded())
+
+        guard minText != maxText else {
+            return "\(minText) m"
+        }
+
+        return "\(minText)-\(maxText) m"
+    }
+
+    func lineSections(trackColor: TrackColor, trackColorMode: TrackColorMode) -> [GPXHeightProfileLineSection] {
+        switch trackColorMode {
+        case .single:
+            return singleColorLineSections(trackColor: trackColor)
+        case .multiDay:
+            guard trackDays.count > 1 else {
+                return singleColorLineSections(trackColor: trackColor)
+            }
+
+            let colorsByDay = TrackColorStyling.colorsByDay(for: trackDays, baseColor: trackColor.uiColor)
+            var sections: [GPXHeightProfileLineSection] = []
+            var currentSamples: [GPXHeightProfileSample] = []
+            var currentDay: Date?
+
+            func appendSection(samples: [GPXHeightProfileSample], day: Date?) {
+                guard samples.count > 1 else { return }
+
+                let color = day.flatMap { colorsByDay[$0] } ?? trackColor.uiColor
+                sections.append(
+                    GPXHeightProfileLineSection(
+                        id: sections.count,
+                        samples: samples,
+                        color: color
+                    )
+                )
+            }
+
+            for sample in samples {
+                let resolvedDay = sample.day ?? currentDay
+
+                if let activeDay = currentDay, let nextDay = resolvedDay, nextDay != activeDay {
+                    appendSection(samples: currentSamples, day: activeDay)
+                    currentSamples = currentSamples.last.map { [$0, sample] } ?? [sample]
+                    currentDay = nextDay
+                } else {
+                    currentSamples.append(sample)
+                    if currentDay == nil {
+                        currentDay = resolvedDay
+                    }
+                }
+            }
+
+            appendSection(samples: currentSamples, day: currentDay)
+            return sections.isEmpty ? singleColorLineSections(trackColor: trackColor) : sections
+        }
+    }
+
+    private func singleColorLineSections(trackColor: TrackColor) -> [GPXHeightProfileLineSection] {
+        [
+            GPXHeightProfileLineSection(
+                id: 0,
+                samples: samples,
+                color: trackColor.uiColor
+            )
+        ]
+    }
+}
+
+struct GPXHeightProfileSample: Identifiable {
+    let id: Int
+    let distanceMeters: CLLocationDistance
+    let elevationMeters: Double
+    let day: Date?
+}
+
+struct GPXHeightProfileLineSection: Identifiable {
+    let id: Int
+    let samples: [GPXHeightProfileSample]
+    let color: UIColor
+}
+
+extension GPXTrack {
+    var heightProfile: GPXHeightProfile? {
+        GPXHeightProfile(track: self)
+    }
+}
+
 struct GPXDocumentEntry: Identifiable {
     let id: URL
     let url: URL
@@ -189,6 +333,48 @@ enum TrackColorMode: String, CaseIterable, Identifiable {
         case .single:
             return "paintbrush"
         }
+    }
+}
+
+enum TrackColorStyling {
+    static func trackDays(in track: GPXTrack, calendar: Calendar) -> [Date] {
+        let days = Set(track.allPoints.compactMap { point in
+            point.time.map { calendar.startOfDay(for: $0) }
+        })
+        return days.sorted()
+    }
+
+    static func colorsByDay(for days: [Date], baseColor: UIColor) -> [Date: UIColor] {
+        Dictionary(
+            uniqueKeysWithValues: days.enumerated().map { index, day in
+                (day, multiDayColor(forDayAt: index, baseColor: baseColor))
+            }
+        )
+    }
+
+    private static func multiDayColor(forDayAt index: Int, baseColor: UIColor) -> UIColor {
+        guard index > 0 else { return baseColor }
+
+        let baseHue = hue(from: baseColor)
+        let hue = (baseHue + CGFloat(index) * 0.618_033_988_75).truncatingRemainder(dividingBy: 1)
+        let saturation: CGFloat = index.isMultiple(of: 2) ? 0.88 : 0.78
+        let brightness: CGFloat = index.isMultiple(of: 3) ? 0.88 : 0.98
+
+        return UIColor(hue: hue, saturation: saturation, brightness: brightness, alpha: 1)
+    }
+
+    private static func hue(from color: UIColor) -> CGFloat {
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+
+        if color.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha),
+           saturation > 0.2 {
+            return hue
+        }
+
+        return 0.03
     }
 }
 
