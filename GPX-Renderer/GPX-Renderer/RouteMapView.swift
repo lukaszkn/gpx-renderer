@@ -41,14 +41,16 @@ struct RouteMapView: UIViewRepresentable {
         mapView.removeOverlays(mapView.overlays)
 
         let routePolylines = makeRoutePolylines()
+        let outlinePolylines = routePolylines.map(\.outlineCopy)
+        let overlayPolylines = outlinePolylines + routePolylines
         let polylines = routePolylines.map(\.polyline)
-        coordinator.overlayColors = Dictionary(
-            uniqueKeysWithValues: routePolylines.map { routePolyline in
-                (ObjectIdentifier(routePolyline.polyline), routePolyline.color)
+        coordinator.overlayStyles = Dictionary(
+            uniqueKeysWithValues: overlayPolylines.map { routePolyline in
+                (ObjectIdentifier(routePolyline.polyline), routePolyline.style)
             }
         )
 
-        mapView.addOverlays(polylines)
+        mapView.addOverlays(overlayPolylines.map(\.polyline))
         coordinator.renderedTrackID = track?.id
         coordinator.renderedTrackColor = trackColor
         coordinator.renderedTrackColorMode = trackColorMode
@@ -126,7 +128,7 @@ struct RouteMapView: UIViewRepresentable {
     private func makePolyline(from points: [GPXPoint], color: UIColor) -> RoutePolyline? {
         let coordinates = points.map(\.coordinate)
         guard coordinates.count > 1 else { return nil }
-        return RoutePolyline(polyline: MKPolyline(coordinates: coordinates, count: coordinates.count), color: color)
+        return RoutePolyline(coordinates: coordinates, style: .track(color: color))
     }
 
     private func fit(polylines: [MKPolyline], on mapView: MKMapView) {
@@ -144,13 +146,50 @@ struct RouteMapView: UIViewRepresentable {
     }
 
     private struct RoutePolyline {
+        let coordinates: [CLLocationCoordinate2D]
         let polyline: MKPolyline
-        let color: UIColor
+        let style: RoutePolylineStyle
+
+        init(coordinates: [CLLocationCoordinate2D], style: RoutePolylineStyle) {
+            self.coordinates = coordinates
+            self.polyline = MKPolyline(coordinates: coordinates, count: coordinates.count)
+            self.style = style
+        }
+
+        var outlineCopy: RoutePolyline {
+            RoutePolyline(coordinates: coordinates, style: .outline)
+        }
+    }
+
+    enum RoutePolylineStyle {
+        private static let trackLineWidth: CGFloat = 5.5
+        private static let outlineLineWidth: CGFloat = 9.5
+
+        case outline
+        case track(color: UIColor)
+
+        var color: UIColor {
+            switch self {
+            case .outline:
+                return .white
+            case .track(let color):
+                return color
+            }
+        }
+
+        var lineWidth: CGFloat {
+            switch self {
+            case .outline:
+                return Self.outlineLineWidth
+            case .track:
+                return Self.trackLineWidth
+            }
+        }
     }
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var trackColor: TrackColor = .flame
-        var overlayColors: [ObjectIdentifier: UIColor] = [:]
+        var overlayStyles: [ObjectIdentifier: RoutePolylineStyle] = [:]
         var renderedTrackID: UUID?
         var renderedTrackColor: TrackColor?
         var renderedTrackColorMode: TrackColorMode?
@@ -161,8 +200,9 @@ struct RouteMapView: UIViewRepresentable {
             }
 
             let renderer = MKPolylineRenderer(polyline: polyline)
-            renderer.strokeColor = overlayColors[ObjectIdentifier(polyline)] ?? trackColor.uiColor
-            renderer.lineWidth = 5.5
+            let style = overlayStyles[ObjectIdentifier(polyline)] ?? .track(color: trackColor.uiColor)
+            renderer.strokeColor = style.color
+            renderer.lineWidth = style.lineWidth
             renderer.lineJoin = .round
             renderer.lineCap = .round
             return renderer

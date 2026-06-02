@@ -270,7 +270,7 @@ struct AppNotice: Identifiable {
 enum TrackColor: String, CaseIterable, Identifiable {
     case flame
     case alpine
-    case volt
+    case violet = "volt"
     case magenta
     case graphite
 
@@ -282,8 +282,8 @@ enum TrackColor: String, CaseIterable, Identifiable {
             return "Flame"
         case .alpine:
             return "Alpine"
-        case .volt:
-            return "Volt"
+        case .violet:
+            return "Violet"
         case .magenta:
             return "Magenta"
         case .graphite:
@@ -301,8 +301,8 @@ enum TrackColor: String, CaseIterable, Identifiable {
             return UIColor(red: 1.00, green: 0.32, blue: 0.08, alpha: 1)
         case .alpine:
             return UIColor(red: 0.00, green: 0.54, blue: 0.96, alpha: 1)
-        case .volt:
-            return UIColor(red: 0.67, green: 0.93, blue: 0.16, alpha: 1)
+        case .violet:
+            return UIColor(red: 0.38, green: 0.22, blue: 1.00, alpha: 1)
         case .magenta:
             return UIColor(red: 0.94, green: 0.17, blue: 0.76, alpha: 1)
         case .graphite:
@@ -360,7 +360,14 @@ enum TrackColorStyling {
         let saturation: CGFloat = index.isMultiple(of: 2) ? 0.88 : 0.78
         let brightness: CGFloat = index.isMultiple(of: 3) ? 0.88 : 0.98
 
-        return UIColor(hue: hue, saturation: saturation, brightness: brightness, alpha: 1)
+        return UIColor(hue: mapFriendlyHue(hue), saturation: saturation, brightness: brightness, alpha: 1)
+    }
+
+    private static func mapFriendlyHue(_ hue: CGFloat) -> CGFloat {
+        let greenAndLimeRange: ClosedRange<CGFloat> = 0.16...0.43
+        guard greenAndLimeRange.contains(hue) else { return hue }
+
+        return (hue + 0.34).truncatingRemainder(dividingBy: 1)
     }
 
     private static func hue(from color: UIColor) -> CGFloat {
