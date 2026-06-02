@@ -59,13 +59,8 @@ final class GPXAppModel: ObservableObject {
         didLoadInitialTrack = true
         refreshDocuments()
 
-        do {
-            if let pendingImport = try fileStore.consumePendingImport() {
-                try loadTrack(from: pendingImport)
-                return
-            }
-        } catch {
-            showError(title: "Import Failed", error: error)
+        if loadPendingImportIfAvailable(errorTitle: "Import Failed") {
+            return
         }
 
         for document in documents {
@@ -90,6 +85,21 @@ final class GPXAppModel: ObservableObject {
 
     func refreshDocuments() {
         documents = fileStore.documentEntries()
+    }
+
+    @discardableResult
+    func loadPendingImportIfAvailable(errorTitle: String = "Could Not Open Shared GPX") -> Bool {
+        do {
+            guard let pendingImport = try fileStore.consumePendingImport() else {
+                return false
+            }
+
+            try loadTrack(from: pendingImport)
+            return true
+        } catch {
+            showError(title: errorTitle, error: error)
+            return false
+        }
     }
 
     func loadDocument(_ document: GPXDocumentEntry) {
@@ -122,15 +132,7 @@ final class GPXAppModel: ObservableObject {
             return
         }
 
-        do {
-            guard let importedURL = try fileStore.consumePendingImport() else {
-                throw GPXImportError.unsupportedFile
-            }
-
-            try loadTrack(from: importedURL)
-        } catch {
-            showError(title: "Could Not Open Shared GPX", error: error)
-        }
+        loadPendingImportIfAvailable()
     }
 
     private func importExternalFile(from url: URL) {

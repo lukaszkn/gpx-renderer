@@ -43,7 +43,6 @@
 		C0D1000D2FCC60000000000D /* Exceptions for "GPX-Renderer" folder in "GPX-Renderer" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"GPX-Renderer.entitlements",
 				Info.plist,
 			);
 			target = B203726B2FCC52AA0040B0D3 /* GPX-Renderer */;
@@ -51,7 +50,6 @@
 		C0D1000E2FCC60000000000E /* Exceptions for "GPXRendererShareExtension" folder in "GPXRendererShareExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				GPXRendererShareExtension.entitlements,
 				Info.plist,
 			);
 			target = C0D100082FCC600000000008 /* GPXRendererShareExtension */;

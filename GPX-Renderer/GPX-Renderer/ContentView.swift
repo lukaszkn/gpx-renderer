@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model = GPXAppModel()
 
     var body: some View {
@@ -37,6 +38,10 @@ struct ContentView: View {
         }
         .onOpenURL { url in
             model.handleOpenURL(url)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            model.loadPendingImportIfAvailable()
         }
         .alert(item: $model.notice) { notice in
             Alert(
