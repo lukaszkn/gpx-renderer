@@ -11,10 +11,10 @@ struct GPXFileStore {
 
     var sampleURL: URL? {
         Bundle.main.url(
-            forResource: "2026_05_20_skuter_krynica",
+            forResource: "2025_06_09_skuter",
             withExtension: "gpx",
             subdirectory: "Sample"
-        ) ?? Bundle.main.url(forResource: "2026_05_20_skuter_krynica", withExtension: "gpx")
+        ) ?? Bundle.main.url(forResource: "2025_06_09_skuter", withExtension: "gpx")
     }
 
     var appGroupContainer: URL? {

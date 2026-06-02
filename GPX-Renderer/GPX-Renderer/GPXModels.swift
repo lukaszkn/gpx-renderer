@@ -337,6 +337,10 @@ enum TrackColorMode: String, CaseIterable, Identifiable {
 }
 
 enum TrackColorStyling {
+    private static let multiDayHueOffsets: [CGFloat] = [
+        0.00, 0.50, 0.10, 0.60, 0.20, 0.70, 0.30, 0.80, 0.40, 0.90
+    ]
+
     static func trackDays(in track: GPXTrack, calendar: Calendar) -> [Date] {
         let days = Set(track.allPoints.compactMap { point in
             point.time.map { calendar.startOfDay(for: $0) }
@@ -356,18 +360,28 @@ enum TrackColorStyling {
         guard index > 0 else { return baseColor }
 
         let baseHue = hue(from: baseColor)
-        let hue = (baseHue + CGFloat(index) * 0.618_033_988_75).truncatingRemainder(dividingBy: 1)
+        let hue = (baseHue + multiDayHueOffset(forDayAt: index)).truncatingRemainder(dividingBy: 1)
         let saturation: CGFloat = index.isMultiple(of: 2) ? 0.88 : 0.78
         let brightness: CGFloat = index.isMultiple(of: 3) ? 0.88 : 0.98
 
         return UIColor(hue: mapFriendlyHue(hue), saturation: saturation, brightness: brightness, alpha: 1)
     }
 
+    private static func multiDayHueOffset(forDayAt index: Int) -> CGFloat {
+        if index < multiDayHueOffsets.count {
+            return multiDayHueOffsets[index]
+        }
+
+        let offset = multiDayHueOffsets[index % multiDayHueOffsets.count]
+        let repeatShift = CGFloat(index / multiDayHueOffsets.count) * 0.05
+        return (offset + repeatShift).truncatingRemainder(dividingBy: 1)
+    }
+
     private static func mapFriendlyHue(_ hue: CGFloat) -> CGFloat {
         let greenAndLimeRange: ClosedRange<CGFloat> = 0.16...0.43
         guard greenAndLimeRange.contains(hue) else { return hue }
 
-        return (hue + 0.34).truncatingRemainder(dividingBy: 1)
+        return (hue + 0.66).truncatingRemainder(dividingBy: 1)
     }
 
     private static func hue(from color: UIColor) -> CGFloat {
