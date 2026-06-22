@@ -67,6 +67,13 @@ struct ContentView: View {
                     Label("Show Height Profile", systemImage: "chart.line.uptrend.xyaxis")
                 }
 
+                Button {
+                    model.saveHighResolutionImageToPhotos()
+                } label: {
+                    Label("Save High-Res Image", systemImage: "photo")
+                }
+                .disabled(model.isSavingScreenshot || model.track == nil)
+
                 Menu {
                     ForEach(TrackColorMode.allCases) { mode in
                         Button {

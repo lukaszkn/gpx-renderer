@@ -127,6 +127,14 @@ final class GPXAppModel: ObservableObject {
         }
     }
 
+    func saveHighResolutionImageToPhotos() {
+        guard !isSavingScreenshot else { return }
+
+        Task {
+            await saveHighResolutionImage()
+        }
+    }
+
     private func handleAppURL(_ url: URL) {
         guard url.host == "import" || url.path.contains("import") else {
             return
@@ -185,6 +193,41 @@ final class GPXAppModel: ObservableObject {
         } catch {
             isChromeHiddenForCapture = false
             showError(title: "Could Not Save Screenshot", error: error)
+        }
+    }
+
+    private func saveHighResolutionImage() async {
+        isSavingScreenshot = true
+        defer {
+            isSavingScreenshot = false
+        }
+
+        do {
+            guard await requestPhotoAddPermission() else {
+                notice = AppNotice(
+                    title: "Photos Access Needed",
+                    message: "Allow Photos add access to save GPX map images."
+                )
+                return
+            }
+
+            guard let track else {
+                throw GPXImportError.emptyTrack
+            }
+
+            let image = try await HighResolutionRouteImageRenderer().render(
+                track: track,
+                stats: stats,
+                trackColor: selectedColor,
+                trackColorMode: trackColorMode,
+                isDateTimeVisible: isDateTimeVisible,
+                isHeightProfileVisible: isHeightProfileVisible
+            )
+
+            try await saveImageToPhotos(image)
+            notice = AppNotice(title: "Saved", message: "The high-resolution map image was saved to Photos.")
+        } catch {
+            showError(title: "Could Not Save High-Res Image", error: error)
         }
     }
 
